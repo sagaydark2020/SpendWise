@@ -614,15 +614,19 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-orange-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#F8F9FE] relative flex items-center justify-center p-4 overflow-hidden">
+        {/* Decorative Glassy Blobs */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-200/30 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-orange-300/20 rounded-full blur-[120px]" />
+        
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
+          className="w-full max-w-md relative z-10"
         >
-          <GlassCard className="text-center space-y-8 py-12 border-none shadow-2xl">
+          <GlassCard className="text-center space-y-8 py-12 border border-white/50 shadow-2xl backdrop-blur-xl bg-white/70">
             <div className="space-y-2">
-              <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
                 <Wallet className="w-10 h-10 text-orange-600" />
               </div>
               <h1 className="text-4xl font-bold text-slate-900 tracking-tight">SpendWise</h1>
