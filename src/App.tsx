@@ -63,21 +63,24 @@ interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const currentUser = supabase.auth.getSession().then(({ data: { session } }) => session?.user);
-  
-  // We can't easily await here in a sync function, so we'll just log what we have
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      providerInfo: []
-    },
+function handleSupabaseError(error: any, operationType: OperationType, path: string | null, setMissingTables?: (updater: (prev: string[]) => string[]) => void) {
+  const errInfo: any = {
+    error: error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error)),
     operationType,
-    path
+    path,
+    details: error?.details,
+    hint: error?.hint,
+    code: error?.code
   };
   
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  // In a real app, we'd show a toast or alert
+  console.error('Supabase Error: ', JSON.stringify(errInfo));
+  
+  if (error?.code === '42P01' || error?.code === 'PGRST205') {
+    console.error(`Table "${path}" does not exist in Supabase. This is why you are seeing errors. Please run the SQL setup script in your Supabase dashboard.`);
+    if (setMissingTables && path) {
+      setMissingTables(prev => prev.includes(path) ? prev : [...prev, path]);
+    }
+  }
 }
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
@@ -147,6 +150,11 @@ export default function App() {
   const [subCategories, setSubCategories] = useState<SubCategory[]>(DEFAULT_SUB_CATEGORIES);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'reports' | 'settings'>('dashboard');
   const [isAddingExpense, setIsAddingExpense] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [newCategory, setNewCategory] = useState({ name: '', icon: 'Utensils', color: '#6366f1' });
+  const [missingTables, setMissingTables] = useState<string[]>([]);
 
   // Form State
   const [newExpense, setNewExpense] = useState({
@@ -257,35 +265,70 @@ export default function App() {
       console.log('Fetching data for user:', userId);
       const currentMonth = format(new Date(), 'yyyy-MM');
       
-      const { data: budgetData } = await supabase
-        .from('monthly_budgets')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('month', currentMonth)
-        .single();
+      // Fetch Budget
+      try {
+        const { data: budgetData, error: budgetError } = await supabase
+          .from('monthly_budgets')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('month', currentMonth)
+          .single();
 
-      if (budgetData) {
-        setMonthlyBudget(budgetData);
-      } else {
-        // Create budget for current month if it doesn't exist
-        const newBudget: MonthlyBudget = {
-          id: crypto.randomUUID(),
-          user_id: userId,
-          month: currentMonth,
-          budget_amount: 10000,
-          carry_forward_amount: 0,
-          total_available: 10000
-        };
-        await supabase.from('monthly_budgets').insert([newBudget]);
-        setMonthlyBudget(newBudget);
+        if (budgetError && budgetError.code !== 'PGRST116') {
+          handleSupabaseError(budgetError, OperationType.GET, 'monthly_budgets', setMissingTables);
+        } else if (budgetData) {
+          setMonthlyBudget(budgetData);
+        } else if (!budgetError) {
+          // Create budget for current month if it doesn't exist
+          const newBudget: MonthlyBudget = {
+            id: crypto.randomUUID(),
+            user_id: userId,
+            month: currentMonth,
+            budget_amount: 10000,
+            carry_forward_amount: 0,
+            total_available: 10000
+          };
+          await supabase.from('monthly_budgets').insert([newBudget]);
+          setMonthlyBudget(newBudget);
+        }
+      } catch (e) {
+        handleSupabaseError(e, OperationType.GET, 'monthly_budgets', setMissingTables);
       }
 
-      const { data: expenseData, error: expenseError } = await supabase.from('expenses').select('*').eq('user_id', userId).order('date', { ascending: false });
-      if (expenseError) throw expenseError;
-      console.log('Fetched expenses:', expenseData?.length);
-      if (expenseData) setExpenses(expenseData);
+      // Fetch Expenses
+      try {
+        const { data: expenseData, error: expenseError } = await supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false });
+        
+        if (expenseError) {
+          handleSupabaseError(expenseError, OperationType.GET, 'expenses', setMissingTables);
+        } else if (expenseData) {
+          setExpenses(expenseData);
+        }
+      } catch (e) {
+        handleSupabaseError(e, OperationType.GET, 'expenses', setMissingTables);
+      }
+
+      // Fetch Categories
+      try {
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('categories')
+          .select('*')
+          .or(`user_id.eq.${userId},user_id.is.null`);
+        
+        if (categoryError) {
+          handleSupabaseError(categoryError, OperationType.GET, 'categories', setMissingTables);
+        } else if (categoryData && categoryData.length > 0) {
+          setCategories(categoryData);
+        }
+      } catch (e) {
+        handleSupabaseError(e, OperationType.GET, 'categories', setMissingTables);
+      }
     } catch (e) {
-      handleFirestoreError(e, OperationType.GET, 'user_data');
+      handleSupabaseError(e, OperationType.GET, 'user_data', setMissingTables);
     }
   };
 
@@ -326,10 +369,147 @@ export default function App() {
       const { error } = await supabase.from('expenses').insert([expenseData]);
       if (error) throw error;
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'expenses');
+      handleSupabaseError(error, OperationType.CREATE, 'expenses');
       // Rollback local state on error
       setExpenses(expenses);
       alert('Failed to save expense. Please check your connection or permissions.');
+    }
+  };
+
+  const handleUpdateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense || !user) return;
+
+    const updatedExpense = {
+      ...editingExpense,
+      amount: parseFloat(newExpense.amount),
+      category_id: newExpense.category_id,
+      sub_category: newExpense.sub_category || null,
+      description: newExpense.description,
+      date: newExpense.date
+    };
+
+    const originalExpenses = [...expenses];
+    setExpenses(expenses.map(exp => exp.id === editingExpense.id ? updatedExpense : exp));
+    setEditingExpense(null);
+    setIsAddingExpense(false);
+    setNewExpense({
+      amount: '',
+      category_id: '',
+      sub_category: '',
+      description: '',
+      date: format(new Date(), 'yyyy-MM-dd')
+    });
+
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          amount: updatedExpense.amount,
+          category_id: updatedExpense.category_id,
+          sub_category: updatedExpense.sub_category,
+          description: updatedExpense.description,
+          date: updatedExpense.date
+        })
+        .eq('id', editingExpense.id);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'expenses');
+      setExpenses(originalExpenses);
+      alert('Failed to update expense.');
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this expense?')) return;
+
+    const originalExpenses = [...expenses];
+    setExpenses(expenses.filter(exp => exp.id !== id));
+
+    try {
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, 'expenses');
+      setExpenses(originalExpenses);
+      alert('Failed to delete expense.');
+    }
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const categoryData = {
+      id: crypto.randomUUID(),
+      name: newCategory.name,
+      icon: newCategory.icon,
+      color: newCategory.color,
+      user_id: user.id,
+      created_at: new Date().toISOString()
+    };
+
+    setCategories([...categories, categoryData as Category]);
+    setIsAddingCategory(false);
+    setNewCategory({ name: '', icon: 'Utensils', color: '#6366f1' });
+
+    try {
+      const { error } = await supabase.from('categories').insert([categoryData]);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'categories');
+      setCategories(categories);
+      alert('Failed to add category.');
+    }
+  };
+
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory || !user) return;
+
+    const updatedCategory = {
+      ...editingCategory,
+      name: newCategory.name,
+      icon: newCategory.icon,
+      color: newCategory.color
+    };
+
+    const originalCategories = [...categories];
+    setCategories(categories.map(cat => cat.id === editingCategory.id ? updatedCategory : cat));
+    setEditingCategory(null);
+    setIsAddingCategory(false);
+    setNewCategory({ name: '', icon: 'Utensils', color: '#6366f1' });
+
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .update({
+          name: updatedCategory.name,
+          icon: updatedCategory.icon,
+          color: updatedCategory.color
+        })
+        .eq('id', editingCategory.id);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'categories');
+      setCategories(originalCategories);
+      alert('Failed to update category.');
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this category? All associated expenses will remain but may lose their category link.')) return;
+
+    const originalCategories = [...categories];
+    setCategories(categories.filter(cat => cat.id !== id));
+
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, 'categories');
+      setCategories(originalCategories);
+      alert('Failed to delete category.');
     }
   };
 
@@ -573,7 +753,33 @@ export default function App() {
                           <p className="text-xs text-slate-400">{format(parseISO(exp.date), 'MMM dd, yyyy')}</p>
                         </div>
                       </div>
-                      <p className="font-bold text-slate-900">₹{exp.amount.toLocaleString()}</p>
+                      <div className="flex items-center gap-4">
+                        <p className="font-bold text-slate-900">₹{exp.amount.toLocaleString()}</p>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => {
+                              setEditingExpense(exp);
+                              setNewExpense({
+                                amount: exp.amount.toString(),
+                                category_id: exp.category_id,
+                                sub_category: exp.sub_category || '',
+                                description: exp.description || '',
+                                date: exp.date
+                              });
+                              setIsAddingExpense(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                          >
+                            <Settings className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteExpense(exp.id)}
+                            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -675,11 +881,12 @@ export default function App() {
                       <th className="px-6 py-4">Category</th>
                       <th className="px-6 py-4">Description</th>
                       <th className="px-6 py-4 text-right">Amount</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {expenses.map((exp) => (
-                      <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-6 py-4 text-sm text-slate-500">{format(parseISO(exp.date), 'MMM dd')}</td>
                         <td className="px-6 py-4">
                           <span className="text-xs font-bold px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">
@@ -690,6 +897,32 @@ export default function App() {
                           {exp.description || exp.sub_category || '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-slate-900">₹{exp.amount.toLocaleString()}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => {
+                                setEditingExpense(exp);
+                                setNewExpense({
+                                  amount: exp.amount,
+                                  category_id: exp.category_id,
+                                  sub_category: exp.sub_category || '',
+                                  description: exp.description || '',
+                                  date: exp.date.split('T')[0]
+                                });
+                                setIsAddingExpense(true);
+                              }}
+                              className="p-1 text-slate-400 hover:text-indigo-600"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteExpense(exp.id)}
+                              className="p-1 text-slate-400 hover:text-red-500"
+                            >
+                              <LogOut className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -705,6 +938,21 @@ export default function App() {
               exit={{ opacity: 0, x: 20 }}
               className="space-y-8"
             >
+              {missingTables.length > 0 && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-4">
+                  <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
+                  <div>
+                    <p className="font-bold text-red-900">Database Setup Required</p>
+                    <p className="text-sm text-red-700 mb-2">
+                      The following tables are missing: {missingTables.join(', ')}. 
+                      Please run the SQL setup script in your Supabase dashboard to enable all features.
+                    </p>
+                    <code className="block p-3 bg-red-100 rounded-xl text-xs text-red-900 overflow-x-auto">
+                      {`CREATE TABLE categories (...); -- See console for full SQL`}
+                    </code>
+                  </div>
+                </div>
+              )}
               <GlassCard className="bg-white border-slate-100">
                 <h3 className="font-bold text-slate-900 mb-6">Budget Settings</h3>
                 <div className="space-y-4">
@@ -733,16 +981,48 @@ export default function App() {
                 <GlassCard className="bg-white border-slate-100">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-bold text-slate-900">Categories</h3>
-                    <button className="text-indigo-600"><Plus className="w-5 h-5" /></button>
+                    <button 
+                      onClick={() => {
+                        setNewCategory({ name: '', icon: 'Utensils', color: '#6366f1' });
+                        setIsAddingCategory(true);
+                      }}
+                      className="text-indigo-600 hover:scale-110 transition-transform"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
                   </div>
                   <div className="space-y-2">
                     {categories.map(cat => (
-                      <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                      <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group">
                         <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${cat.color}15` }}>
+                            {cat.icon === 'Utensils' && <Utensils className="w-4 h-4" style={{ color: cat.color }} />}
+                            {cat.icon === 'Car' && <Car className="w-4 h-4" style={{ color: cat.color }} />}
+                            {cat.icon === 'Activity' && <Activity className="w-4 h-4" style={{ color: cat.color }} />}
+                            {cat.icon === 'Zap' && <Zap className="w-4 h-4" style={{ color: cat.color }} />}
+                          </div>
                           <span className="text-sm font-medium">{cat.name}</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => {
+                              setEditingCategory(cat);
+                              setNewCategory({ name: cat.name, icon: cat.icon || 'Utensils', color: cat.color || '#6366f1' });
+                              setIsAddingCategory(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-indigo-600"
+                          >
+                            <Settings className="w-4 h-4" />
+                          </button>
+                          {cat.user_id && (
+                            <button 
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="p-1 text-slate-400 hover:text-red-500"
+                            >
+                              <LogOut className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -771,7 +1051,90 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Add Expense Modal */}
+      {/* Add/Edit Category Modal */}
+      <AnimatePresence>
+        {isAddingCategory && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsAddingCategory(false);
+                setEditingCategory(null);
+              }}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-md relative"
+            >
+              <GlassCard className="bg-white p-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                  {editingCategory ? 'Edit Category' : 'Add New Category'}
+                </h2>
+                <form onSubmit={editingCategory ? handleUpdateCategory : handleAddCategory} className="space-y-6">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Category Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      placeholder="e.g. Entertainment"
+                      value={newCategory.name}
+                      onChange={e => setNewCategory({ ...newCategory, name: e.target.value })}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Icon</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['Utensils', 'Car', 'Activity', 'Zap'].map(icon => (
+                        <button
+                          key={icon}
+                          type="button"
+                          onClick={() => setNewCategory({ ...newCategory, icon })}
+                          className={`p-4 rounded-xl flex items-center justify-center border-2 transition-all ${
+                            newCategory.icon === icon ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-slate-50 text-slate-400'
+                          }`}
+                        >
+                          {icon === 'Utensils' && <Utensils className="w-6 h-6" />}
+                          {icon === 'Car' && <Car className="w-6 h-6" />}
+                          {icon === 'Activity' && <Activity className="w-6 h-6" />}
+                          {icon === 'Zap' && <Zap className="w-6 h-6" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Color</label>
+                    <div className="flex gap-2">
+                      {['#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', '#6366f1', '#f43f5e', '#8b5cf6', '#ec4899'].map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setNewCategory({ ...newCategory, color })}
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${
+                            newCategory.color === color ? 'border-slate-900 scale-110' : 'border-transparent'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    {editingCategory ? 'Update Category' : 'Add Category'}
+                  </button>
+                </form>
+              </GlassCard>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isAddingExpense && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -779,7 +1142,10 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsAddingExpense(false)}
+              onClick={() => {
+                setIsAddingExpense(false);
+                setEditingExpense(null);
+              }}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             />
             <motion.div 
@@ -789,8 +1155,10 @@ export default function App() {
               className="w-full max-w-lg relative"
             >
               <GlassCard className="bg-white p-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Expense</h2>
-                <form onSubmit={handleAddExpense} className="space-y-6">
+                <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                  {editingExpense ? 'Edit Expense' : 'Add New Expense'}
+                </h2>
+                <form onSubmit={editingExpense ? handleUpdateExpense : handleAddExpense} className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Amount (₹)</label>
