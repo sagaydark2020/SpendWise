@@ -12,7 +12,12 @@ import {
   ChevronRight,
   Search,
   Filter,
-  AlertCircle
+  AlertCircle,
+  Utensils,
+  Car,
+  Activity,
+  Zap,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -157,6 +162,30 @@ export default function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(true);
+
+  const displayName = useMemo(() => {
+    if (!user) return '';
+    if (user.id === 'demo-user') return 'Demo User';
+    return user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+  }, [user]);
+
+  const getCategoryIcon = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    const iconProps = { className: "w-6 h-6" };
+    
+    switch (category?.icon) {
+      case 'Utensils': return <Utensils {...iconProps} style={{ color: category.color }} />;
+      case 'Car': return <Car {...iconProps} style={{ color: category.color }} />;
+      case 'Activity': return <Activity {...iconProps} style={{ color: category.color }} />;
+      case 'Zap': return <Zap {...iconProps} style={{ color: category.color }} />;
+      default: return <ChevronRight {...iconProps} />;
+    }
+  };
+
+  const getCategoryBg = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    return category ? `${category.color}15` : '#f8fafc'; // 15 is ~8% opacity in hex
+  };
 
   useEffect(() => {
     const url = (import.meta as any).env.VITE_SUPABASE_URL;
@@ -430,8 +459,12 @@ export default function App() {
         <NavButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History />} label="History" />
         <NavButton active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<PieChart />} label="Reports" />
         <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings />} label="Settings" />
-        <button onClick={logout} className="p-3 text-slate-400 hover:text-red-500 transition-colors hidden md:block mt-auto mb-8">
-          <LogOut className="w-6 h-6" />
+        <div className="flex-1" />
+        <button onClick={logout} className="p-3 text-slate-400 hover:text-red-500 transition-all flex flex-col items-center gap-1 mb-8 group">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-red-50 transition-colors">
+            <LogOut className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] font-bold truncate max-w-[80px]">{displayName}</span>
         </button>
       </nav>
 
@@ -440,7 +473,10 @@ export default function App() {
         {/* Header */}
         <header className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Welcome back</h2>
+            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Welcome back, {displayName}
+            </h2>
             <h1 className="text-3xl font-bold text-slate-900">Monthly Overview</h1>
           </div>
           <button 
@@ -524,10 +560,13 @@ export default function App() {
                 </div>
                 <div className="space-y-3">
                   {expenses.slice(0, 5).map((exp) => (
-                    <div key={exp.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:border-indigo-200 transition-colors group">
+                    <div key={exp.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all hover:shadow-md group">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                          {categories.find(c => c.id === exp.category_id)?.name.includes('Food') ? <Plus className="rotate-45" /> : <ChevronRight />}
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
+                          style={{ backgroundColor: getCategoryBg(exp.category_id) }}
+                        >
+                          {getCategoryIcon(exp.category_id)}
                         </div>
                         <div>
                           <p className="font-bold text-slate-900">{exp.description || exp.sub_category || 'Expense'}</p>
