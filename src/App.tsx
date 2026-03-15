@@ -106,7 +106,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
             <p className="text-slate-500 mb-6">We encountered an unexpected error. Please try refreshing the page.</p>
             <button 
               onClick={() => window.location.reload()}
-              className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all"
+              className="w-full py-4 bg-orange-600 text-white font-bold rounded-2xl hover:bg-orange-700 transition-all"
             >
               Refresh Page
             </button>
@@ -127,6 +127,7 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: '2', name: 'Transport', icon: 'Car', color: '#4D96FF', user_id: null, created_at: '' },
   { id: '3', name: 'Health', icon: 'Activity', color: '#6BCB77', user_id: null, created_at: '' },
   { id: '4', name: 'Utilities', icon: 'Zap', color: '#FFD93D', user_id: null, created_at: '' },
+  { id: '5', name: 'Entertainment', icon: 'Gamepad', color: '#A06EE1', user_id: null, created_at: '' },
 ];
 
 const DEFAULT_SUB_CATEGORIES: SubCategory[] = [
@@ -613,7 +614,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-indigo-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-orange-600 flex items-center justify-center p-4">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -621,10 +622,10 @@ export default function App() {
         >
           <GlassCard className="text-center space-y-8 py-12 border-none shadow-2xl">
             <div className="space-y-2">
-              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Wallet className="w-10 h-10 text-indigo-600" />
+              <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Wallet className="w-10 h-10 text-orange-600" />
               </div>
-              <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Bright Expense</h1>
+              <h1 className="text-4xl font-bold text-slate-900 tracking-tight">SpendWise</h1>
               <p className="text-slate-500">Manage your finances with ease</p>
             </div>
             
@@ -648,7 +649,7 @@ export default function App() {
                   type="email" 
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   placeholder="name@example.com"
                   required
                 />
@@ -659,7 +660,7 @@ export default function App() {
                   type="password" 
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   placeholder="••••••••"
                   required
                 />
@@ -667,7 +668,7 @@ export default function App() {
               {authError && <p className="text-red-500 text-xs ml-2">{authError}</p>}
               <button 
                 type="submit"
-                className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition-colors"
+                className="w-full py-4 bg-orange-600 text-white font-bold rounded-2xl shadow-lg hover:bg-orange-700 transition-colors"
               >
                 {isSignUp ? 'Create Account' : 'Sign In'}
               </button>
@@ -676,7 +677,7 @@ export default function App() {
             <div className="space-y-4">
               <button 
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="text-slate-400 text-sm hover:text-indigo-600 transition-colors"
+                className="text-slate-400 text-sm hover:text-orange-600 transition-colors"
               >
                 {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
               </button>
@@ -689,22 +690,33 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-[#FDFDFF] text-slate-800 font-sans pb-24 md:pb-0 md:pl-24">
+      <div className="min-h-screen bg-[#FDFDFF] text-slate-800 font-sans pb-24 md:pb-0 md:pl-64">
       {/* Sidebar / Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around px-4 z-50 md:top-0 md:bottom-0 md:left-0 md:w-24 md:h-full md:flex-col md:border-t-0 md:border-r">
-        <div className="hidden md:flex w-12 h-12 bg-indigo-600 rounded-2xl items-center justify-center mb-8">
-          <Wallet className="text-white w-6 h-6" />
+      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around px-4 z-50 md:top-0 md:bottom-0 md:left-0 md:w-64 md:h-full md:flex-col md:border-t-0 md:border-r md:px-4 md:py-8">
+        <div className="hidden md:flex items-center gap-3 w-full px-4 mb-12">
+          <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+            <Wallet className="text-white w-6 h-6" />
+          </div>
+          <span className="text-xl font-bold bg-gradient-to-r from-orange-600 to-orange-400 bg-clip-text text-transparent">SpendWise</span>
         </div>
-        <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard />} label="Home" />
-        <NavButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History />} label="History" />
-        <NavButton active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<PieChart />} label="Reports" />
-        <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings />} label="Settings" />
-        <div className="flex-1" />
-        <button onClick={logout} className="p-3 text-slate-400 hover:text-red-500 transition-all flex flex-col items-center gap-1 mb-8 group">
-          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-red-50 transition-colors">
+        
+        <div className="flex w-full justify-around md:flex-col md:gap-2 md:justify-start">
+          <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard />} label="Dashboard" />
+          <NavButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History />} label="Transactions" />
+          <NavButton active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<PieChart />} label="Reports" />
+          <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings />} label="Settings" />
+        </div>
+
+        <div className="hidden md:flex flex-1" />
+        
+        <button onClick={logout} className="hidden md:flex items-center gap-4 w-full p-4 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all group mt-auto">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-red-100 transition-colors">
             <LogOut className="w-5 h-5" />
           </div>
-          <span className="text-[10px] font-bold truncate max-w-[80px]">{displayName}</span>
+          <div className="flex flex-col items-start overflow-hidden">
+            <span className="text-sm font-bold text-slate-700 truncate w-full">{displayName}</span>
+            <span className="text-[10px] text-slate-400">Sign Out</span>
+          </div>
         </button>
       </nav>
 
@@ -721,7 +733,7 @@ export default function App() {
           </div>
           <button 
             onClick={() => setIsAddingExpense(true)}
-            className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 hover:scale-110 transition-transform"
+            className="w-12 h-12 bg-orange-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200 hover:scale-110 transition-transform"
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -737,7 +749,7 @@ export default function App() {
             >
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <GlassCard className="bg-indigo-600 text-white border-none shadow-lg shadow-indigo-200">
+                <GlassCard className="bg-orange-500 text-white border-none shadow-lg shadow-orange-200">
                   <div className="flex justify-between items-start mb-4">
                     <div className="p-2 bg-white/20 rounded-xl">
                       <Wallet className="w-6 h-6" />
@@ -796,11 +808,11 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-slate-900">Recent Transactions</h3>
-                  <button onClick={() => setActiveTab('history')} className="text-sm font-bold text-indigo-600">View All</button>
+                  <button onClick={() => setActiveTab('history')} className="text-sm font-bold text-orange-600">View All</button>
                 </div>
                 <div className="space-y-3">
                   {expenses.slice(0, 5).map((exp) => (
-                    <div key={exp.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all hover:shadow-md group">
+                    <div key={exp.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:border-orange-200 transition-all hover:shadow-md group">
                       <div className="flex items-center gap-4">
                         <div 
                           className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
@@ -828,7 +840,7 @@ export default function App() {
                               });
                               setIsAddingExpense(true);
                             }}
-                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                            className="p-2 text-slate-400 hover:text-orange-600 transition-colors"
                           >
                             <Settings className="w-4 h-4" />
                           </button>
@@ -900,7 +912,7 @@ export default function App() {
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                         <YAxis hide />
                         <Tooltip cursor={{ fill: '#f8fafc' }} />
-                        <Bar dataKey="amount" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="amount" fill="#f97316" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -924,10 +936,10 @@ export default function App() {
                     <input 
                       type="text" 
                       placeholder="Search..." 
-                      className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     />
                   </div>
-                  <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600">
+                  <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-orange-600">
                     <Filter className="w-5 h-5" />
                   </button>
                 </div>
@@ -949,7 +961,7 @@ export default function App() {
                       <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-6 py-4 text-sm text-slate-500">{format(parseISO(exp.date), 'MMM dd')}</td>
                         <td className="px-6 py-4">
-                          <span className="text-xs font-bold px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">
+                          <span className="text-xs font-bold px-2 py-1 rounded-lg bg-orange-50 text-orange-600">
                             {categories.find(c => c.id === exp.category_id)?.name}
                           </span>
                         </td>
@@ -971,7 +983,7 @@ export default function App() {
                                 });
                                 setIsAddingExpense(true);
                               }}
-                              className="p-1 text-slate-400 hover:text-indigo-600"
+                              className="p-1 text-slate-400 hover:text-orange-600"
                             >
                               <Settings className="w-4 h-4" />
                             </button>
@@ -1022,7 +1034,7 @@ export default function App() {
                       type="number" 
                       value={monthlyBudget?.budget_amount}
                       onChange={(e) => setMonthlyBudget(p => p ? { ...p, budget_amount: parseInt(e.target.value) } : null)}
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     />
                   </div>
                   <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
@@ -1043,10 +1055,10 @@ export default function App() {
                     <h3 className="font-bold text-slate-900">Categories</h3>
                     <button 
                       onClick={() => {
-                        setNewCategory({ name: '', icon: 'Utensils', color: '#6366f1' });
+                        setNewCategory({ name: '', icon: 'Utensils', color: '#f97316' });
                         setIsAddingCategory(true);
                       }}
-                      className="text-indigo-600 hover:scale-110 transition-transform"
+                      className="text-orange-600 hover:scale-110 transition-transform"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
@@ -1067,10 +1079,10 @@ export default function App() {
                           <button 
                             onClick={() => {
                               setEditingCategory(cat);
-                              setNewCategory({ name: cat.name, icon: cat.icon || 'Utensils', color: cat.color || '#6366f1' });
+                              setNewCategory({ name: cat.name, icon: cat.icon || 'Utensils', color: cat.color || '#f97316' });
                               setIsAddingCategory(true);
                             }}
-                            className="p-1 text-slate-400 hover:text-indigo-600"
+                            className="p-1 text-slate-400 hover:text-orange-600"
                           >
                             <Settings className="w-4 h-4" />
                           </button>
@@ -1096,7 +1108,7 @@ export default function App() {
                         setNewSubCategory({ name: '', category_id: '' });
                         setIsAddingSubCategory(true);
                       }}
-                      className="text-indigo-600 hover:scale-110 transition-transform"
+                      className="text-orange-600 hover:scale-110 transition-transform"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
@@ -1134,7 +1146,7 @@ export default function App() {
                   <h3 className="font-bold text-slate-900 mb-6">Account</h3>
                   <div className="space-y-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                      <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold">
                         {user.email[0].toUpperCase()}
                       </div>
                       <div>
@@ -1179,7 +1191,7 @@ export default function App() {
                       required
                       value={newSubCategory.category_id}
                       onChange={e => setNewSubCategory({ ...newSubCategory, category_id: e.target.value })}
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     >
                       <option value="">Select Category...</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1193,7 +1205,7 @@ export default function App() {
                       placeholder="e.g. Groceries"
                       value={newSubCategory.name}
                       onChange={e => setNewSubCategory({ ...newSubCategory, name: e.target.value })}
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     />
                   </div>
                   <div className="flex gap-4 pt-4">
@@ -1206,7 +1218,7 @@ export default function App() {
                     </button>
                     <button 
                       type="submit"
-                      className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors"
+                      className="flex-1 py-4 bg-orange-600 text-white font-bold rounded-2xl shadow-lg shadow-orange-200 hover:bg-orange-700 transition-colors"
                     >
                       Add Sub-Category
                     </button>
@@ -1251,7 +1263,7 @@ export default function App() {
                       placeholder="e.g. Entertainment"
                       value={newCategory.name}
                       onChange={e => setNewCategory({ ...newCategory, name: e.target.value })}
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     />
                   </div>
                   <div>
@@ -1263,7 +1275,7 @@ export default function App() {
                           type="button"
                           onClick={() => setNewCategory({ ...newCategory, icon })}
                           className={`p-4 rounded-xl flex items-center justify-center border-2 transition-all ${
-                            newCategory.icon === icon ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-slate-50 text-slate-400'
+                            newCategory.icon === icon ? 'border-orange-600 bg-orange-50 text-orange-600' : 'border-slate-100 bg-slate-50 text-slate-400'
                           }`}
                         >
                           {icon === 'Utensils' && <Utensils className="w-6 h-6" />}
@@ -1277,7 +1289,7 @@ export default function App() {
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Color</label>
                     <div className="flex gap-2">
-                      {['#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', '#6366f1', '#f43f5e', '#8b5cf6', '#ec4899'].map(color => (
+                      {['#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', '#f97316', '#f43f5e', '#8b5cf6', '#ec4899'].map(color => (
                         <button
                           key={color}
                           type="button"
@@ -1292,7 +1304,7 @@ export default function App() {
                   </div>
                   <button 
                     type="submit"
-                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition-colors"
+                    className="w-full py-4 bg-orange-600 text-white font-bold rounded-2xl shadow-lg hover:bg-orange-700 transition-colors"
                   >
                     {editingCategory ? 'Update Category' : 'Add Category'}
                   </button>
@@ -1335,7 +1347,7 @@ export default function App() {
                         placeholder="0.00"
                         value={newExpense.amount}
                         onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       />
                     </div>
                     <div>
@@ -1344,7 +1356,7 @@ export default function App() {
                         required
                         value={newExpense.category_id}
                         onChange={e => setNewExpense({ ...newExpense, category_id: e.target.value, sub_category: '' })}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       >
                         <option value="">Select...</option>
                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1355,7 +1367,7 @@ export default function App() {
                       <select 
                         value={newExpense.sub_category}
                         onChange={e => setNewExpense({ ...newExpense, sub_category: e.target.value })}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       >
                         <option value="">Select...</option>
                         {subCategories.filter(s => s.category_id === newExpense.category_id).map(s => (
@@ -1370,7 +1382,7 @@ export default function App() {
                         placeholder="e.g. Weekly groceries"
                         value={newExpense.description}
                         onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       />
                     </div>
                     <div className="col-span-2">
@@ -1379,7 +1391,7 @@ export default function App() {
                         type="date" 
                         value={newExpense.date}
                         onChange={e => setNewExpense({ ...newExpense, date: e.target.value })}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       />
                     </div>
                   </div>
@@ -1393,7 +1405,7 @@ export default function App() {
                     </button>
                     <button 
                       type="submit"
-                      className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors"
+                      className="flex-1 py-4 bg-orange-600 text-white font-bold rounded-2xl shadow-lg shadow-orange-200 hover:bg-orange-700 transition-colors"
                     >
                       Save Expense
                     </button>
@@ -1413,18 +1425,19 @@ function NavButton({ active, onClick, icon, label }: { active: boolean, onClick:
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col md:flex-row items-center gap-1 md:gap-4 p-3 rounded-2xl transition-all duration-300 ${
+      className={`flex flex-col md:flex-row items-center gap-1 md:gap-4 p-3 md:px-4 md:py-3.5 rounded-2xl transition-all duration-300 w-full ${
         active 
-          ? 'text-indigo-600 bg-indigo-50 md:w-48 md:px-6' 
+          ? 'text-orange-600 bg-orange-50 shadow-sm shadow-orange-100/50' 
           : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
       }`}
     >
-      <div className={`${active ? 'scale-110' : 'scale-100'} transition-transform`}>
-        {icon}
+      <div className={`${active ? 'scale-110 text-orange-500' : 'scale-100'} transition-transform`}>
+        {React.cloneElement(icon as React.ReactElement, { size: 20 })}
       </div>
-      <span className={`text-[10px] md:text-sm font-bold ${active ? 'opacity-100' : 'opacity-0 md:opacity-100 md:text-slate-400'}`}>
+      <span className={`text-[10px] md:text-sm font-bold ${active ? 'opacity-100' : 'opacity-0 md:opacity-100 md:text-slate-500'}`}>
         {label}
       </span>
+      {active && <div className="hidden md:block absolute left-0 w-1 h-6 bg-orange-500 rounded-r-full" />}
     </button>
   );
 }
