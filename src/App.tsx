@@ -11,7 +11,8 @@ import {
   Wallet,
   ChevronRight,
   Search,
-  Filter
+  Filter,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -28,8 +29,89 @@ import {
 } from 'recharts';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO, subMonths } from 'date-fns';
 import { supabase } from './lib/supabase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string;
+    email?: string;
+    emailVerified?: boolean;
+    isAnonymous?: boolean;
+    tenantId?: string | null;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const currentUser = supabase.auth.getSession().then(({ data: { session } }) => session?.user);
+  
+  // We can't easily await here in a sync function, so we'll just log what we have
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      providerInfo: []
+    },
+    operationType,
+    path
+  };
+  
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // In a real app, we'd show a toast or alert
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Something went wrong</h2>
+            <p className="text-slate-500 mb-6">We encountered an unexpected error. Please try refreshing the page.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (this as any).props.children;
+  }
+}
 import { GlassCard } from './components/GlassCard';
-import type { Expense, Category, SubCategory, Profile } from './types/database';
+import type { Expense, Category, SubCategory, MonthlyBudget } from './types/database';
 
 // Mock Data for initial development if Supabase is not connected
 const DEFAULT_CATEGORIES: Category[] = [
@@ -54,7 +136,7 @@ const DEFAULT_SUB_CATEGORIES: SubCategory[] = [
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [subCategories, setSubCategories] = useState<SubCategory[]>(DEFAULT_SUB_CATEGORIES);
@@ -65,7 +147,7 @@ export default function App() {
   const [newExpense, setNewExpense] = useState({
     amount: '',
     category_id: '',
-    sub_category_id: '',
+    sub_category: '',
     description: '',
     date: format(new Date(), 'yyyy-MM-dd')
   });
@@ -96,7 +178,7 @@ export default function App() {
       if (session?.user) {
         fetchUserData(session.user.id);
       } else {
-        setProfile(null);
+        setMonthlyBudget(null);
         setExpenses([]);
       }
     });
@@ -113,16 +195,18 @@ export default function App() {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (data.user) {
-          // Create initial profile
-          const initialProfile: Profile = {
-            id: data.user.id,
-            email: data.user.email || '',
-            monthly_budget: 10000,
-            carry_forward_balance: 0,
-            created_at: new Date().toISOString()
+          // Create initial budget for current month
+          const currentMonth = format(new Date(), 'yyyy-MM');
+          const initialBudget: MonthlyBudget = {
+            id: crypto.randomUUID(),
+            user_id: data.user.id,
+            month: currentMonth,
+            budget_amount: 10000,
+            carry_forward_amount: 0,
+            total_available: 10000
           };
-          await supabase.from('profiles').insert([initialProfile]);
-          setProfile(initialProfile);
+          await supabase.from('monthly_budgets').insert([initialBudget]);
+          setMonthlyBudget(initialBudget);
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -136,59 +220,87 @@ export default function App() {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setProfile(null);
+    setMonthlyBudget(null);
   };
 
   const fetchUserData = async (userId: string) => {
     try {
-      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (profileData) {
-        setProfile(profileData);
+      console.log('Fetching data for user:', userId);
+      const currentMonth = format(new Date(), 'yyyy-MM');
+      
+      const { data: budgetData } = await supabase
+        .from('monthly_budgets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('month', currentMonth)
+        .single();
+
+      if (budgetData) {
+        setMonthlyBudget(budgetData);
       } else {
-        // Fallback if profile doesn't exist yet
-        const newProfile = {
-          id: userId,
-          email: user?.email || '',
-          monthly_budget: 10000,
-          carry_forward_balance: 0,
-          created_at: new Date().toISOString()
+        // Create budget for current month if it doesn't exist
+        const newBudget: MonthlyBudget = {
+          id: crypto.randomUUID(),
+          user_id: userId,
+          month: currentMonth,
+          budget_amount: 10000,
+          carry_forward_amount: 0,
+          total_available: 10000
         };
-        setProfile(newProfile);
+        await supabase.from('monthly_budgets').insert([newBudget]);
+        setMonthlyBudget(newBudget);
       }
 
-      const { data: expenseData } = await supabase.from('expenses').select('*').eq('user_id', userId).order('date', { ascending: false });
+      const { data: expenseData, error: expenseError } = await supabase.from('expenses').select('*').eq('user_id', userId).order('date', { ascending: false });
+      if (expenseError) throw expenseError;
+      console.log('Fetched expenses:', expenseData?.length);
       if (expenseData) setExpenses(expenseData);
     } catch (e) {
-      console.error("Error fetching data", e);
+      handleFirestoreError(e, OperationType.GET, 'user_data');
     }
   };
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    const expense: Expense = {
-      id: Math.random().toString(36).substr(2, 9),
-      user_id: user?.id || 'guest',
+    
+    if (!user || user.id === 'demo-user') {
+      alert('Please sign in to save your expenses.');
+      return;
+    }
+
+    const { id, ...expenseData } = {
+      id: crypto.randomUUID(),
+      user_id: user.id,
       amount: parseFloat(newExpense.amount),
       category_id: newExpense.category_id,
-      sub_category_id: newExpense.sub_category_id,
+      sub_category: newExpense.sub_category || null,
       description: newExpense.description,
       date: newExpense.date,
       created_at: new Date().toISOString()
     };
+
+    const expense = { id, ...expenseData } as Expense;
 
     setExpenses([expense, ...expenses]);
     setIsAddingExpense(false);
     setNewExpense({
       amount: '',
       category_id: '',
-      sub_category_id: '',
+      sub_category: '',
       description: '',
       date: format(new Date(), 'yyyy-MM-dd')
     });
 
     // Try to persist to Supabase
-    if (user && user.id !== 'demo-user') {
-      await supabase.from('expenses').insert([expense]);
+    try {
+      console.log('Inserting expense:', expenseData);
+      const { error } = await supabase.from('expenses').insert([expenseData]);
+      if (error) throw error;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'expenses');
+      // Rollback local state on error
+      setExpenses(expenses);
+      alert('Failed to save expense. Please check your connection or permissions.');
     }
   };
 
@@ -202,9 +314,9 @@ export default function App() {
     currentMonthExpenses.reduce((sum, exp) => sum + exp.amount, 0)
   , [currentMonthExpenses]);
 
-  const budget = profile?.monthly_budget || 10000;
-  const carryForward = profile?.carry_forward_balance || 0;
-  const totalAvailable = budget + carryForward;
+  const budget = monthlyBudget?.budget_amount || 10000;
+  const carryForward = monthlyBudget?.carry_forward_amount || 0;
+  const totalAvailable = monthlyBudget?.total_available || (budget + carryForward);
   const remaining = totalAvailable - totalSpent;
 
   const chartData = useMemo(() => {
@@ -220,12 +332,13 @@ export default function App() {
   const loginDemo = async () => {
     // Simple mock login for demo
     setUser({ id: 'demo-user', email: 'demo@example.com' });
-    setProfile({
+    setMonthlyBudget({
       id: 'demo-user',
-      email: 'demo@example.com',
-      monthly_budget: 10000,
-      carry_forward_balance: 1200, // Example carry forward
-      created_at: new Date().toISOString()
+      user_id: 'demo-user',
+      month: format(new Date(), 'yyyy-MM'),
+      budget_amount: 10000,
+      carry_forward_amount: 1200,
+      total_available: 11200
     });
   };
 
@@ -306,7 +419,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFDFF] text-slate-800 font-sans pb-24 md:pb-0 md:pl-24">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-[#FDFDFF] text-slate-800 font-sans pb-24 md:pb-0 md:pl-24">
       {/* Sidebar / Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around px-4 z-50 md:top-0 md:bottom-0 md:left-0 md:w-24 md:h-full md:flex-col md:border-t-0 md:border-r">
         <div className="hidden md:flex w-12 h-12 bg-indigo-600 rounded-2xl items-center justify-center mb-8">
@@ -416,7 +530,7 @@ export default function App() {
                           {categories.find(c => c.id === exp.category_id)?.name.includes('Food') ? <Plus className="rotate-45" /> : <ChevronRight />}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900">{exp.description || subCategories.find(s => s.id === exp.sub_category_id)?.name || 'Expense'}</p>
+                          <p className="font-bold text-slate-900">{exp.description || exp.sub_category || 'Expense'}</p>
                           <p className="text-xs text-slate-400">{format(parseISO(exp.date), 'MMM dd, yyyy')}</p>
                         </div>
                       </div>
@@ -534,7 +648,7 @@ export default function App() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                          {exp.description || subCategories.find(s => s.id === exp.sub_category_id)?.name || '-'}
+                          {exp.description || exp.sub_category || '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-slate-900">₹{exp.amount.toLocaleString()}</td>
                       </tr>
@@ -559,8 +673,8 @@ export default function App() {
                     <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Monthly Budget (₹)</label>
                     <input 
                       type="number" 
-                      value={profile?.monthly_budget}
-                      onChange={(e) => setProfile(p => p ? { ...p, monthly_budget: parseInt(e.target.value) } : null)}
+                      value={monthlyBudget?.budget_amount}
+                      onChange={(e) => setMonthlyBudget(p => p ? { ...p, budget_amount: parseInt(e.target.value) } : null)}
                       className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
@@ -655,7 +769,7 @@ export default function App() {
                       <select 
                         required
                         value={newExpense.category_id}
-                        onChange={e => setNewExpense({ ...newExpense, category_id: e.target.value, sub_category_id: '' })}
+                        onChange={e => setNewExpense({ ...newExpense, category_id: e.target.value, sub_category: '' })}
                         className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                       >
                         <option value="">Select...</option>
@@ -665,13 +779,13 @@ export default function App() {
                     <div>
                       <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Sub-Category</label>
                       <select 
-                        value={newExpense.sub_category_id}
-                        onChange={e => setNewExpense({ ...newExpense, sub_category_id: e.target.value })}
+                        value={newExpense.sub_category}
+                        onChange={e => setNewExpense({ ...newExpense, sub_category: e.target.value })}
                         className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                       >
                         <option value="">Select...</option>
                         {subCategories.filter(s => s.category_id === newExpense.category_id).map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
+                          <option key={s.id} value={s.name}>{s.name}</option>
                         ))}
                       </select>
                     </div>
@@ -717,6 +831,7 @@ export default function App() {
         )}
       </AnimatePresence>
     </div>
+    </ErrorBoundary>
   );
 }
 

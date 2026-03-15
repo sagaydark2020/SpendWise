@@ -29,7 +29,7 @@ export type Expense = {
   id: string;
   user_id: string;
   category_id: string;
-  sub_category_id?: string;
+  sub_category?: string;
   amount: number;
   description?: string;
   date: string;
@@ -39,10 +39,8 @@ export type Expense = {
 export type MonthlyBudget = {
   id: string;
   user_id: string;
-  month: string; // YYYY-MM
+  month: string; // Format: YYYY-MM
   budget_amount: number;
-  actual_spend: number;
-  savings: number;
-  carried_forward: boolean;
-  created_at: string;
+  carry_forward_amount: number;
+  total_available: number;
 };
