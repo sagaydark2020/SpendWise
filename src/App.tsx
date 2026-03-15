@@ -154,6 +154,8 @@ export default function App() {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newCategory, setNewCategory] = useState({ name: '', icon: 'Utensils', color: '#6366f1' });
+  const [newSubCategory, setNewSubCategory] = useState({ name: '', category_id: '' });
+  const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
   const [missingTables, setMissingTables] = useState<string[]>([]);
 
   // Form State
@@ -326,6 +328,22 @@ export default function App() {
         }
       } catch (e) {
         handleSupabaseError(e, OperationType.GET, 'categories', setMissingTables);
+      }
+
+      // Fetch Sub-Categories
+      try {
+        const { data: subCategoryData, error: subCategoryError } = await supabase
+          .from('sub_categories')
+          .select('*')
+          .or(`user_id.eq.${userId},user_id.is.null`);
+        
+        if (subCategoryError) {
+          handleSupabaseError(subCategoryError, OperationType.GET, 'sub_categories', setMissingTables);
+        } else if (subCategoryData && subCategoryData.length > 0) {
+          setSubCategories(subCategoryData);
+        }
+      } catch (e) {
+        handleSupabaseError(e, OperationType.GET, 'sub_categories', setMissingTables);
       }
     } catch (e) {
       handleSupabaseError(e, OperationType.GET, 'user_data', setMissingTables);
@@ -510,6 +528,48 @@ export default function App() {
       handleSupabaseError(error, OperationType.DELETE, 'categories');
       setCategories(originalCategories);
       alert('Failed to delete category.');
+    }
+  };
+
+  const handleAddSubCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const subCategoryData = {
+      id: crypto.randomUUID(),
+      category_id: newSubCategory.category_id,
+      name: newSubCategory.name,
+      user_id: user.id,
+      created_at: new Date().toISOString()
+    };
+
+    setSubCategories([...subCategories, subCategoryData as SubCategory]);
+    setIsAddingSubCategory(false);
+    setNewSubCategory({ name: '', category_id: '' });
+
+    try {
+      const { error } = await supabase.from('sub_categories').insert([subCategoryData]);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'sub_categories', setMissingTables);
+      setSubCategories(subCategories);
+      alert('Failed to add sub-category.');
+    }
+  };
+
+  const handleDeleteSubCategory = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this sub-category?')) return;
+
+    const originalSubCategories = [...subCategories];
+    setSubCategories(subCategories.filter(sc => sc.id !== id));
+
+    try {
+      const { error } = await supabase.from('sub_categories').delete().eq('id', id);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, 'sub_categories', setMissingTables);
+      setSubCategories(originalSubCategories);
+      alert('Failed to delete sub-category.');
     }
   };
 
@@ -991,7 +1051,7 @@ export default function App() {
                       <Plus className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                     {categories.map(cat => (
                       <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group">
                         <div className="flex items-center gap-3">
@@ -1029,6 +1089,48 @@ export default function App() {
                 </GlassCard>
 
                 <GlassCard className="bg-white border-slate-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-bold text-slate-900">Sub-Categories</h3>
+                    <button 
+                      onClick={() => {
+                        setNewSubCategory({ name: '', category_id: '' });
+                        setIsAddingSubCategory(true);
+                      }}
+                      className="text-indigo-600 hover:scale-110 transition-transform"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                    {categories.map(cat => {
+                      const catSubs = subCategories.filter(sc => sc.category_id === cat.id);
+                      if (catSubs.length === 0 && !cat.user_id) return null;
+                      return (
+                        <div key={cat.id} className="space-y-2">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{cat.name}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {catSubs.map(sc => (
+                              <div key={sc.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg group">
+                                <span className="text-xs font-medium">{sc.name}</span>
+                                {sc.user_id && (
+                                  <button 
+                                    onClick={() => handleDeleteSubCategory(sc.id)}
+                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
+                                  >
+                                    <LogOut className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {catSubs.length === 0 && <p className="text-xs text-slate-300 italic">No sub-categories</p>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </GlassCard>
+
+                <GlassCard className="bg-white border-slate-100">
                   <h3 className="font-bold text-slate-900 mb-6">Account</h3>
                   <div className="space-y-4">
                     <div className="flex items-center gap-4">
@@ -1050,6 +1152,71 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Add Sub-Category Modal */}
+      <AnimatePresence>
+        {isAddingSubCategory && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddingSubCategory(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-md relative"
+            >
+              <GlassCard className="bg-white p-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-6">Add Sub-Category</h2>
+                <form onSubmit={handleAddSubCategory} className="space-y-6">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Parent Category</label>
+                    <select 
+                      required
+                      value={newSubCategory.category_id}
+                      onChange={e => setNewSubCategory({ ...newSubCategory, category_id: e.target.value })}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="">Select Category...</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Sub-Category Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      placeholder="e.g. Groceries"
+                      value={newSubCategory.name}
+                      onChange={e => setNewSubCategory({ ...newSubCategory, name: e.target.value })}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div className="flex gap-4 pt-4">
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddingSubCategory(false)}
+                      className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors"
+                    >
+                      Add Sub-Category
+                    </button>
+                  </div>
+                </form>
+              </GlassCard>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Add/Edit Category Modal */}
       <AnimatePresence>
